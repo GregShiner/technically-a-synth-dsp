@@ -47,6 +47,14 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
         let (a, b) = self.fft_buffer.split_at(self.fft_cursor);
         ordered[..b.len()].copy_from_slice(b);
         ordered[b.len()..].copy_from_slice(a);
+        // dasp comes with a hann window function that gets applied to a signal but for whatever
+        // reason that did not work and broke the FFT. Doing it manually seems to be fine.
+        // Maybe switch this out in the future for something a little faster.
+        (0..FFT_BUFFER_SIZE).for_each(|i| {
+            let hann = 0.5
+                * (1.0 - (2.0 * core::f32::consts::PI * i as f32 / FFT_BUFFER_SIZE as f32).cos());
+            ordered[i] *= hann;
+        });
         let spectrum = rfft_1024(&mut ordered);
         spectrum.map(|c| sqrtf(c.re * c.re + c.im * c.im))
     }
