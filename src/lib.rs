@@ -1,6 +1,6 @@
 #![no_std]
 
-mod biquad;
+pub mod biquad;
 use dasp::{
     Signal,
     signal::{
