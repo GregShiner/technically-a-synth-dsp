@@ -17,6 +17,10 @@ pub struct Oscillator<S: Signal<Frame = f64>> {
     sample_rate: Option<f64>,
     pub bus: Bus<S>,
     pub main_send: Output<S>,
+}
+
+pub struct FFTOscillator<S: Signal<Frame = f64>> {
+    oscillator: Oscillator<S>,
     fft_send: Output<S>,
     fft_buffer: [f32; FFT_BUFFER_SIZE],
     pub fft_cursor: usize,
@@ -25,19 +29,32 @@ pub struct Oscillator<S: Signal<Frame = f64>> {
 impl<S: Signal<Frame = f64>> Oscillator<S> {
     pub fn new(freq: Option<f64>, sample_rate: Option<f64>, signal: S) -> Self {
         let bus = signal.bus();
-        let fft_send = bus.send();
         let main_send = bus.send();
         Self {
             freq,
             sample_rate,
             bus,
             main_send,
-            fft_send,
-            fft_buffer: [0.0; FFT_BUFFER_SIZE],
-            fft_cursor: 0,
         }
     }
 
+    pub fn tick(&mut self) -> f32 {
+        self.main_send.next() as f32
+    }
+}
+
+impl<S: Signal<Frame = f64>> FFTOscillator<S> {
+    pub fn new(oscillator: Oscillator<S>) -> Self {
+        let fft_send = oscillator.bus.send();
+        let fft_buffer = [0.0f32; FFT_BUFFER_SIZE];
+        let fft_cursor = 0usize;
+        Self {
+            oscillator,
+            fft_send,
+            fft_buffer,
+            fft_cursor,
+        }
+    }
     pub fn fft_1024_magnitudes(&mut self) -> [f32; FFT_BUFFER_SIZE / 2] {
         let spectrum = self.fft_1024();
         complex_magnitudes(spectrum)
@@ -64,13 +81,11 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
     }
 
     pub fn tick(&mut self) -> f32 {
-        let audio_sample = self.main_send.next() as f32;
         let fft_sample = self.fft_send.next() as f32;
 
         self.fft_buffer[self.fft_cursor] = fft_sample;
         self.fft_cursor = (self.fft_cursor + 1) % FFT_BUFFER_SIZE;
-
-        audio_sample
+        self.oscillator.tick()
     }
 }
 
@@ -81,16 +96,12 @@ pub fn complex_magnitudes<const N: usize>(complex: [Complex32; N]) -> [f32; N] {
 impl Oscillator<Square<ConstHz>> {
     pub fn new_square(freq: f64, sample_rate: f64) -> Self {
         let bus = signal::rate(sample_rate).const_hz(freq).square().bus();
-        let fft_send = bus.send();
         let main_send = bus.send();
         Self {
             freq: Some(freq),
             sample_rate: Some(sample_rate),
             bus,
             main_send,
-            fft_send,
-            fft_buffer: [0.0; 1024],
-            fft_cursor: 0,
         }
     }
 }
@@ -98,16 +109,12 @@ impl Oscillator<Square<ConstHz>> {
 impl Oscillator<Sine<ConstHz>> {
     pub fn new_sine(freq: f64, sample_rate: f64) -> Self {
         let bus = signal::rate(sample_rate).const_hz(freq).sine().bus();
-        let fft_send = bus.send();
         let main_send = bus.send();
         Self {
             freq: Some(freq),
             sample_rate: Some(sample_rate),
             bus,
             main_send,
-            fft_send,
-            fft_buffer: [0.0; 1024],
-            fft_cursor: 0,
         }
     }
 }
@@ -115,16 +122,12 @@ impl Oscillator<Sine<ConstHz>> {
 impl Oscillator<Saw<ConstHz>> {
     pub fn new_saw(freq: f64, sample_rate: f64) -> Self {
         let bus = signal::rate(sample_rate).const_hz(freq).saw().bus();
-        let fft_send = bus.send();
         let main_send = bus.send();
         Self {
             freq: Some(freq),
             sample_rate: Some(sample_rate),
             bus,
             main_send,
-            fft_send,
-            fft_buffer: [0.0; 1024],
-            fft_cursor: 0,
         }
     }
 }
