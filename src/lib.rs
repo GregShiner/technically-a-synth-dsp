@@ -8,7 +8,7 @@ use dasp::{
     },
 };
 use libm::sqrtf;
-use microfft::real::rfft_1024;
+use microfft::{Complex32, real::rfft_1024};
 
 const FFT_BUFFER_SIZE: usize = 1024;
 
@@ -38,7 +38,12 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
         }
     }
 
-    pub fn real_fft_1024(&mut self) -> [f32; 512] {
+    pub fn fft_1024_magnitudes(&mut self) -> [f32; FFT_BUFFER_SIZE / 2] {
+        let spectrum = self.fft_1024();
+        complex_magnitudes(spectrum)
+    }
+
+    pub fn fft_1024(&mut self) -> [Complex32; FFT_BUFFER_SIZE / 2] {
         // It might make sense to make this function return an option that is only Some when the
         // fft_cursor is 0. This may also avoid the need for a copy of the buffer, but only if the
         // buffer is ever consumed once every time since it may be modified.
@@ -55,8 +60,7 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
                 * (1.0 - (2.0 * core::f32::consts::PI * i as f32 / FFT_BUFFER_SIZE as f32).cos());
             ordered[i] *= hann;
         });
-        let spectrum = rfft_1024(&mut ordered);
-        spectrum.map(|c| sqrtf(c.re * c.re + c.im * c.im))
+        *rfft_1024(&mut ordered)
     }
 
     pub fn tick(&mut self) -> f32 {
@@ -68,6 +72,10 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
 
         audio_sample
     }
+}
+
+pub fn complex_magnitudes<const N: usize>(complex: [Complex32; N]) -> [f32; N] {
+    complex.map(|c| sqrtf(c.re * c.re + c.im * c.im))
 }
 
 impl Oscillator<Square<ConstHz>> {
