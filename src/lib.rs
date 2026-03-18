@@ -20,13 +20,6 @@ pub struct Oscillator<S: Signal<Frame = f64>> {
     pub main_send: Output<S>,
 }
 
-pub struct FFTOscillator<S: Signal<Frame = f64>> {
-    oscillator: Oscillator<S>,
-    fft_send: Output<S>,
-    fft_buffer: [f32; FFT_BUFFER_SIZE],
-    pub fft_cursor: usize,
-}
-
 impl<S: Signal<Frame = f64>> Signal for Oscillator<S> {
     type Frame = f64;
 
@@ -48,14 +41,18 @@ impl<S: Signal<Frame = f64>> Oscillator<S> {
     }
 }
 
-impl<S: Signal<Frame = f64>> FFTOscillator<S> {
-    pub fn new(oscillator: Oscillator<S>) -> Self {
-        let fft_send = oscillator.bus.send();
+pub struct FFTAnalyzer<S: Signal<Frame = f64>> {
+    inner: S,
+    fft_buffer: [f32; FFT_BUFFER_SIZE],
+    fft_cursor: usize,
+}
+
+impl<S: Signal<Frame = f64>> FFTAnalyzer<S> {
+    pub fn new(signal: S) -> Self {
         let fft_buffer = [0.0f32; FFT_BUFFER_SIZE];
         let fft_cursor = 0usize;
         Self {
-            oscillator,
-            fft_send,
+            inner: signal,
             fft_buffer,
             fft_cursor,
         }
@@ -86,14 +83,14 @@ impl<S: Signal<Frame = f64>> FFTOscillator<S> {
     }
 }
 
-impl<S: Signal<Frame = f64>> Signal for FFTOscillator<S> {
+impl<S: Signal<Frame = f64>> Signal for FFTAnalyzer<S> {
     type Frame = f64;
     fn next(&mut self) -> f64 {
-        let fft_sample = self.fft_send.next() as f32;
+        let fft_sample = self.inner.next();
 
-        self.fft_buffer[self.fft_cursor] = fft_sample;
+        self.fft_buffer[self.fft_cursor] = fft_sample as f32;
         self.fft_cursor = (self.fft_cursor + 1) % FFT_BUFFER_SIZE;
-        self.oscillator.next()
+        fft_sample
     }
 }
 pub fn complex_magnitudes<const N: usize>(complex: [Complex32; N]) -> [f32; N] {
